@@ -39,17 +39,28 @@ const runTruncationMessage = "%d banned-markup findings across this run, of whic
 const unexaminableMessage = "%s could not be looked inside, so any document it holds is unaccounted for; the gate " +
 	"cannot vouch for a tree it could not read, so this is reported rather than passed over"
 
-// Report is the whole run's report: the paths whose names the walk saw, and the
-// paths it could not look inside.
+// Report is the whole run's report: every NAME the walk saw, and the paths it
+// could not look inside.
+//
+// It reads [goyze.Expansion.Names] and never [goyze.Expansion.Files], which is
+// this rule's shape rather than a preference. Files is one spelling per FILE —
+// the right question for a rule that reads bytes, where analyzing one inode
+// twice under two names reports one defect as two — and the wrong one here,
+// because a name finding's subject IS the name. A `guide.adoc` symlink and a
+// `notes.adoc` hard link are each a banned document in a repository under their
+// own name; collapsing them to one reported spelling leaves the other in place
+// with the gate green, and a symlink survives a clone as mode 120000. Reading
+// BOTH lists is the other way to be wrong: Names is a superset of Files, so
+// every file would be reported twice.
 //
 // [goyze.Expansion.Unreadable] means something narrower here than the walk hands
 // back, and the caller narrows it. A rule that must READ to decide is blind to
 // every path it could not open; this rule decides by NAME, so a path the walk
-// merely failed to read has still been seen and belongs with the files. What is
+// merely failed to read has still been seen and belongs with the names. What is
 // left — a directory nobody could enumerate, whose children's names were never
 // seen — is the only genuine blind spot, and it is what this list must carry.
 //
-// It takes the expansion WHOLE, rather than a list of files and a list of
+// It takes the expansion WHOLE, rather than a list of names and a list of
 // failures, so both go through ONE counter, ONE limit and ONE truncation
 // notice. Split across two entry points they disagreed in the sibling this rule
 // was modelled on: read failures were appended past a limit that had already
@@ -58,7 +69,7 @@ const unexaminableMessage = "%s could not be looked inside, so any document it h
 // announced nothing and exited zero.
 func Report(found goyze.Expansion) goyze.Report {
 	run := collecting{}
-	for _, path := range found.Files {
+	for _, path := range found.Names {
 		run = run.add(Path(path), examined)
 	}
 	for _, path := range found.Unreadable {
@@ -107,8 +118,9 @@ func (c collecting) add(at Path, find finder) collecting {
 // An empty report is an empty ARRAY, not a JSON null. A nil slice encodes as
 // `null`, which is a different document from the `[]` every sibling analyzer
 // emits — and a consumer that iterates the field fails on it. For THIS rule
-// that is not an edge case but the ordinary output: it reports nothing over the
-// fleet as it stands, so the clean report is the one shape it emits most.
+// that is not an edge case but the ordinary output: measured 2026-08-12, it is
+// clean in 715 of the fleet's 716 repositories, so the clean report is the one
+// shape it emits most.
 func (c collecting) done() goyze.Report {
 	if c.truncatedAt == "" {
 		return goyze.Report{Diagnostics: emptied(c.diags)}

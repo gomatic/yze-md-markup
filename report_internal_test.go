@@ -30,7 +30,7 @@ func bannedPaths(n findingCount) []string {
 // 10000 are reported" has been told the truncation did not happen.
 func TestARunPastTheReportLimitStillNamesWhatItFound(t *testing.T) {
 	over := reportLimit + 3
-	found := goyze.Expansion{Files: bannedPaths(over)}
+	found := goyze.Expansion{Names: bannedPaths(over)}
 
 	report := Report(found)
 
@@ -50,7 +50,7 @@ func TestARunPastTheReportLimitStillNamesWhatItFound(t *testing.T) {
 // was still being collected is how a total silently becomes a guess.
 func TestFindingsPastTheLimitAreCountedFromBothHalvesOfARun(t *testing.T) {
 	found := goyze.Expansion{
-		Files:      bannedPaths(reportLimit + 1),
+		Names:      bannedPaths(reportLimit + 1),
 		Unreadable: []string{"docs/locked", "docs/hidden.rst"},
 	}
 
@@ -61,10 +61,35 @@ func TestFindingsPastTheLimitAreCountedFromBothHalvesOfARun(t *testing.T) {
 		"everything found is counted, whether or not it was collected")
 }
 
+// TestTheTotalCountsFindingsRatherThanPaths pins what the truncation notice's
+// number MEANS, which every other corpus here leaves free.
+//
+// The other truncation tests hand [Report] nothing but banned names, so one
+// finding per path and one increment per path are the same number and the claim
+// at [collecting.add] — that the total is what the run FOUND — has nothing
+// behind it. A mutation replacing the count of findings with a count of paths
+// survives them all. Here the clean names outnumber the banned ones, so a run
+// that counted paths would announce a total half again as large as the number of
+// documents anybody has to fix, in the very sentence that claims to name it.
+func TestTheTotalCountsFindingsRatherThanPaths(t *testing.T) {
+	banned := bannedPaths(reportLimit + 1)
+	clean := make([]string, 0, reportLimit)
+	for i := findingCount(0); i < reportLimit; i++ {
+		clean = append(clean, "docs/notes-"+strconv.Itoa(int(i))+".md")
+	}
+	found := goyze.Expansion{Names: append(banned, clean...)}
+
+	report := Report(found)
+
+	notice := report.Diagnostics[len(report.Diagnostics)-1]
+	assert.Contains(t, notice.Message, fmt.Sprintf("%d banned-markup findings across this run", reportLimit+1),
+		"the markdown files are paths this run judged, not findings it made")
+}
+
 // TestARunUnderItsLimitCarriesNoNotice pins the ordinary case: nothing is
 // announced when nothing was dropped.
 func TestARunUnderItsLimitCarriesNoNotice(t *testing.T) {
-	report := Report(goyze.Expansion{Files: bannedPaths(3)})
+	report := Report(goyze.Expansion{Names: bannedPaths(3)})
 
 	require.Len(t, report.Diagnostics, 3)
 	for _, d := range report.Diagnostics {
@@ -75,8 +100,8 @@ func TestARunUnderItsLimitCarriesNoNotice(t *testing.T) {
 // TestACleanRunCollectsNothingAndStillEncodesAsAnArray pins the shape of this
 // rule's ORDINARY output.
 //
-// It reports nothing over the fleet as it stands, so the clean report is the
-// document it emits most, and a nil slice would make that document
+// It is clean in 715 of the fleet's 716 repositories, so the clean report is
+// the document it emits most, and a nil slice would make that document
 // `{"diagnostics":null}` — a different shape from every sibling analyzer's
 // `{"diagnostics":[]}`, and one a consumer iterating the field fails on. The
 // JSON is asserted, not the slice, because the JSON is what leaves the process.
@@ -84,7 +109,7 @@ func TestACleanRunCollectsNothingAndStillEncodesAsAnArray(t *testing.T) {
 	for name, report := range map[string]goyze.Report{
 		"a run given nothing":      collecting{}.done(),
 		"a run finding nothing":    collecting{}.add("README.md", examined).done(),
-		"an expansion of markdown": Report(goyze.Expansion{Files: []string{"README.md"}}),
+		"an expansion of markdown": Report(goyze.Expansion{Names: []string{"README.md"}}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Empty(t, report.Diagnostics)

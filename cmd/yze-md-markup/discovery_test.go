@@ -3,11 +3,10 @@ package main
 // What this command claims, and nothing else. The walk itself — the symlinked
 // root, the identity of a path reached two ways, the tree that cannot be read,
 // the ignore filter — belongs to the shared discovery and is proven there,
-// once, rather than three times in three ways that disagreed.
+// once, rather than three times in three ways that disagreed. What this command
+// makes of the names that walk reached is proven in names_test.go.
 
 import (
-	"io/fs"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -103,18 +102,6 @@ func TestADomainNamedDirectoryIsNotADocument(t *testing.T) {
 	assert.Empty(t, reported(t, dir))
 }
 
-// TestASymlinkedDocumentIsJudgedByTheNameItIsPublishedUnder pins that
-// publishing a document through a link does not launder it. The link's own name
-// is what the repository holds and what a reader opens, so a `guide.adoc`
-// pointing at anything at all is an AsciiDoc document in this repository.
-func TestASymlinkedDocumentIsJudgedByTheNameItIsPublishedUnder(t *testing.T) {
-	dir := t.TempDir()
-	target := writeDoc(t, dir, "content/source.md", "# Title\n")
-	require.NoError(t, os.Symlink(target, filepath.Join(dir, "guide.adoc")))
-
-	assert.Equal(t, []string{"guide.adoc"}, reported(t, dir))
-}
-
 // TestAFoldedSpellingIsFoundOnDisk pins the fold against a real file rather
 // than a string.
 //
@@ -130,61 +117,6 @@ func TestAFoldedSpellingIsFoundOnDisk(t *testing.T) {
 	writeDoc(t, dir, "GUIDE.md", "# Title\n")
 
 	assert.Equal(t, []string{"README.rſt"}, reported(t, dir))
-}
-
-// TestAPathThatCannotBeReadIsStillJudgedByItsName pins the narrowing this rule
-// applies to what the walk could not read.
-//
-// A dangling symlink is a path whose own name the walk read out loud, and the
-// name is this rule's whole decision — so `op-run` is clean and `notes.rst` is
-// a reStructuredText document, exactly as they would be if both resolved. This
-// is measured rather than theoretical: reporting every unreadable path as an
-// unknown made a broken `op-run` link the ONLY finding this rule produced
-// anywhere in the fleet.
-func TestAPathThatCannotBeReadIsStillJudgedByItsName(t *testing.T) {
-	dir := t.TempDir()
-	absent := filepath.Join(dir, "nowhere")
-	require.NoError(t, os.Symlink(absent, filepath.Join(dir, "op-run")))
-	require.NoError(t, os.Symlink(absent, filepath.Join(dir, "notes.rst")))
-
-	assert.Equal(t, []string{"notes.rst"}, reported(t, dir),
-		"the name convicts one and clears the other; neither is an unknown")
-}
-
-// TestIsOpaqueTreatsAVanishedPathAsUnknown pins the conservative arm. A walk
-// that named a path which has since gone answers neither "clean" nor "banned":
-// nothing can be decided about a name nobody can confirm, and a question nobody
-// could answer is not an answer of clean.
-func TestIsOpaqueTreatsAVanishedPathAsUnknown(t *testing.T) {
-	dir := t.TempDir()
-	vanished := filepath.Join(dir, "vanished")
-	original := files.WalkDir
-	files.WalkDir = vanishedEntry(vanished)
-	t.Cleanup(func() { files.WalkDir = original })
-	buf := swapStdout(t)
-
-	require.Equal(t, 0, run([]string{dir}))
-
-	diags := decode(t, buf).Diagnostics
-	require.Len(t, diags, 1)
-	assert.Equal(t, vanished, diags[0].Path)
-	assert.Contains(t, diags[0].Message, "could not be looked inside")
-}
-
-// vanishedEntry walks for real, then hands the walk one more path that is not
-// there — the entry a concurrent delete removes between being listed and being
-// stat'd, which no arrangement of a real tree can produce on demand.
-func vanishedEntry(at string) func(string, fs.WalkDirFunc) error {
-	return func(root string, walk fs.WalkDirFunc) error {
-		if err := filepath.WalkDir(root, walk); err != nil {
-			return err
-		}
-		// The callback answers a failure with fs.SkipDir, which has nothing
-		// left to skip here: this is the last entry of the walk, not one inside
-		// it.
-		_ = walk(at, nil, os.ErrNotExist)
-		return nil
-	}
 }
 
 // TestTheClaimIsTheRulesOwnPredicate pins that the walk and the report cannot
