@@ -1,0 +1,16 @@
+The publish gate. While this file exists the release workflow tags nothing.
+
+yze-md-markup has never been pushed anywhere. It was built locally, and its name
+is provisional — the owner may rename it before any of it is published, and a
+module path is the one thing a rename cannot take back once the proxy has seen
+it. proxy.golang.org is first-write-wins and permanent: the first fetch of any
+version caches that tree's zip forever and sum.golang.org records its hash, so a
+tag cut before the name is settled is a tag this module carries for good.
+
+So the hold stays until publication is a decision rather than a side effect of a
+push: the name is chosen, the leak vet passes over the whole tree and its full
+history, an adversarial round returns clean, and only then is a single v0.1.0 cut
+deliberately from a tree somebody chose.
+
+Removing this file IS the act of publishing. Do not remove it to quiet a
+workflow.
