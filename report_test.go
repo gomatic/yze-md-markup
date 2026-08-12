@@ -20,11 +20,11 @@ func paths(report goyze.Report) []string {
 }
 
 // TestAnEmptyExpansionIsAnEmptyReport pins that a walk that found nothing to
-// judge says so. This rule reports nothing on the fleet as it stands today, so
-// the clean report is its ordinary output rather than an edge case.
+// judge says so. This rule finds no banned document anywhere in the fleet as it
+// stands, so the clean report is its ordinary output rather than an edge case.
 func TestAnEmptyExpansionIsAnEmptyReport(t *testing.T) {
 	assert.Empty(t, markup.Report(goyze.Expansion{}).Diagnostics)
-	assert.Empty(t, markup.Report(goyze.Expansion{Files: []string{"README.md", "main.go"}}).Diagnostics)
+	assert.Empty(t, markup.Report(goyze.Expansion{Names: []string{"README.md", "main.go"}}).Diagnostics)
 }
 
 // TestOnlyTheBannedFilesAreReported pins that the report applies the rule
@@ -34,12 +34,37 @@ func TestAnEmptyExpansionIsAnEmptyReport(t *testing.T) {
 // future change to the walk's claim, could turn into a report about every
 // markdown file in the repository.
 func TestOnlyTheBannedFilesAreReported(t *testing.T) {
-	found := goyze.Expansion{Files: []string{"README.md", "docs/guide.adoc", "main.go", "notes.rst"}}
+	found := goyze.Expansion{Names: []string{"README.md", "docs/guide.adoc", "main.go", "notes.rst"}}
 
 	report := markup.Report(found)
 
 	assert.Equal(t, []string{"docs/guide.adoc", "notes.rst"}, paths(report),
 		"the banned files, in the order the walk found them")
+}
+
+// TestEverySpellingOfOneDocumentIsItsOwnFinding pins the question this report
+// asks of an expansion.
+//
+// A hard link and an aliasing symlink are ONE file under two names, and both
+// names are violations: deleting the reported one leaves the other in place,
+// still a banned document, now with a green gate. The expansion's file list
+// collapses them by design — one spelling per inode, which is right for a rule
+// that reads bytes — so this report reads its NAME list, where each spelling
+// stands on its own.
+//
+// The same expansion's file half must not be a second source of findings. Names
+// is a superset of Files, so reading both would report every ordinary document
+// twice — the duplicate this rule's whole aggregation exists to avoid.
+func TestEverySpellingOfOneDocumentIsItsOwnFinding(t *testing.T) {
+	found := goyze.Expansion{
+		Names: []string{"guide.rst", "notes.adoc", "alias.rst"},
+		Files: []string{"guide.rst"},
+	}
+
+	report := markup.Report(found)
+
+	assert.Equal(t, []string{"guide.rst", "notes.adoc", "alias.rst"}, paths(report),
+		"three names, three findings, and the file list is not a fourth")
 }
 
 // TestAnUnexaminablePathIsReportedRatherThanLost pins the blind spot. A
@@ -82,7 +107,7 @@ func TestABannedNameIsConvictedEvenWhenNothingCouldReadIt(t *testing.T) {
 // other half had already consumed.
 func TestEveryPathOfARunIsJudgedOnce(t *testing.T) {
 	found := goyze.Expansion{
-		Files:      []string{"README.md", "notes.rst"},
+		Names:      []string{"README.md", "notes.rst"},
 		Unreadable: []string{"locked", "hidden.adoc"},
 	}
 

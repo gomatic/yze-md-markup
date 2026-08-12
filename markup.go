@@ -18,6 +18,15 @@
 // third-party, and all already invisible to this rule because the discovery
 // prunes those trees. First-party instances: ZERO.
 //
+// Re-measured 2026-08-12 after the shared walk began reporting the directory
+// links it declines to enter: over the same 716 repositories, the whole fleet
+// produces ONE diagnostic, and it is not a document. It is a blind-spot notice
+// for `tsvsheet/_projects/.obsidian/plugins/tsvsheet`, a link to a tree outside
+// the repository, in a repository whose `.gitignore` is a deny-all allowlist —
+// the shape where the shared discovery deliberately stops honouring the filter
+// rather than answer a whole run with a silent clean pass. Banned documents
+// found: still ZERO.
+//
 // The standard this fleet is written to says to measure before mechanizing,
 // because an analyzer for a rule nobody breaks costs runtime forever and
 // detects nothing. This one is built anyway, deliberately, on two grounds:

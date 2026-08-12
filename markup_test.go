@@ -14,7 +14,7 @@ import (
 // judge is the whole rule under test, reached the way the command reaches it:
 // one examined path, and whatever it produced.
 func judge(path string) []goyze.Diagnostic {
-	return markup.Report(goyze.Expansion{Files: []string{path}}).Diagnostics
+	return markup.Report(goyze.Expansion{Names: []string{path}}).Diagnostics
 }
 
 // TestEveryBannedMarkupIsReportedAndNamed pins the banned table entry by entry,

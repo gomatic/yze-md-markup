@@ -4,32 +4,15 @@ package main
 // about turning arguments into paths — the symlinked root, the identity of a
 // path reached two ways, the tree that cannot be read, the ignore filter —
 // belongs to the shared discovery, because three analyzers answering those
-// questions separately answered them differently.
+// questions separately answered them differently. Which of the shared walk's
+// two answers a NAME rule reads, and what it makes of a path nobody could look
+// inside, is [judged]'s — see names.go.
 
 import (
 	goyze "github.com/gomatic/go-yze"
 
 	markup "github.com/gomatic/yze-md-markup"
 )
-
-// Two properties of the SHARED walk under-report this rule specifically, and
-// both were proven by an adversarial review rather than reasoned about. They are
-// recorded here so nobody reads this analyzer as name-complete, and they are not
-// worked around locally: the walk is one implementation on purpose, and an
-// analyzer that disagreed with its siblings about what a tree contains would be
-// the defect the shared discovery exists to prevent.
-//
-//   - Deduplication is by file IDENTITY (device+inode), so two NAMES for one
-//     file collapse to one finding: a hard link `notes.adoc` beside
-//     `guide.rst`, or an `alias.rst` symlink, is dropped even when named
-//     outright. For a rule whose finding IS the name, both names are violations
-//     — deleting one leaves the other, still a banned document in the tree.
-//   - A symlink to a DIRECTORY is neither descended nor reported, so a
-//     `docs -> ../rst-docs` link hides every banned document beneath it with no
-//     finding and no unreadable notice. Naming that same link as an argument
-//     reports them, which is the proof the tool can see them at all.
-//
-// Both belong to `go-yze`'s discovery and are fixes to make there.
 
 // discovery is this command's file discovery: the shared walk, told what this
 // rule judges and whose trees to skip.
@@ -47,46 +30,6 @@ func discovery() goyze.Discovery {
 // the right answer.
 func claims(path goyze.FilePath) bool {
 	return markup.Banned(markup.Path(path))
-}
-
-// judged re-expresses an expansion for a rule that decides by NAME.
-//
-// The walk hands back one list of paths it could not read, mixing two things
-// this rule answers differently: a directory it was refused entry to, whose
-// children's names it never saw, and an entry it could not have READ — a FIFO,
-// a device, a link resolving to nothing — whose own name it saw perfectly well.
-// For a rule whose entire decision is the name, seeing the name IS examining
-// it, so the second kind joins the files and is judged like any other path.
-//
-// Reporting both as blind spots was measured wrong: the first sweep of the
-// whole fleet produced exactly one finding, and it was a dangling `op-run`
-// symlink — a rule that has never seen a first-party violation, whose only
-// output anywhere was a broken link that has nothing to do with markup.
-func judged(found goyze.Expansion) goyze.Expansion {
-	seen := make([]string, 0, len(found.Files)+len(found.Unreadable))
-	seen = append(seen, found.Files...)
-	opaque := make([]string, 0, len(found.Unreadable))
-	for _, path := range found.Unreadable {
-		if isOpaque(markup.Path(path)) {
-			opaque = append(opaque, path)
-			continue
-		}
-		seen = append(seen, path)
-	}
-	return goyze.Expansion{Files: seen, Unreadable: opaque}
-}
-
-// isOpaque reports a path this rule could not look inside: a directory nobody
-// enumerated, or a path that is no longer there at all.
-//
-// It LSTATS. Following the link instead would answer "gone" for a dangling
-// symlink — a path whose own name the walk read out loud — and turn every
-// broken link in every repository into a finding about markup. A path that
-// cannot be lstat'd is genuinely unknown and is treated as opaque, because a
-// question nobody could answer is not an answer of "clean".
-func isOpaque(at markup.Path) bool {
-	info, err := files.Lstat(string(at))
-	return err != nil || info.IsDir()
 }
 
 // pruned reports the trees that hold somebody else's prose. A dependency's
