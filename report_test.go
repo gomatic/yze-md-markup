@@ -115,3 +115,34 @@ func TestEveryPathOfARunIsJudgedOnce(t *testing.T) {
 
 	assert.Equal(t, []string{"notes.rst", "locked", "hidden.adoc"}, paths(report))
 }
+
+// TestDiagnosticsJudgesOneDocumentByItsNameAlone pins the suite entry point.
+// The rule's defining property is that the decision is the PATH, so the same
+// answer is owed whether or not anything could read the bytes — which is why
+// Diagnostics takes no source at all.
+func TestDiagnosticsJudgesOneDocumentByItsNameAlone(t *testing.T) {
+	banned, err := markup.Diagnostics("docs/guide.rst")
+	require.NoError(t, err)
+	require.Len(t, banned, 1, "a banned markup name is one finding")
+	assert.Equal(t, "docs/guide.rst", banned[0].Path, "the finding carries the navigable path, not a basename")
+
+	allowed, err := markup.Diagnostics("docs/guide.md")
+	require.NoError(t, err)
+	assert.Empty(t, allowed, "a markup this repository does write prose in is silent")
+}
+
+// TestDiagnosticsAgreesWithBanned pins the pairing the suite relies on: Banned
+// is the claim predicate and Diagnostics is the verdict, so a path Banned
+// refuses must produce nothing and a path it accepts must produce exactly one
+// finding. If the two ever disagree the runner either reads files it never
+// reports or reports files it never claimed.
+func TestDiagnosticsAgreesWithBanned(t *testing.T) {
+	for _, at := range []markup.Path{
+		"README.rst", "notes.adoc", "book.org", "README.md", "main.go", "", "docs/",
+	} {
+		diags, err := markup.Diagnostics(at)
+		require.NoError(t, err)
+		assert.Equal(t, markup.Banned(at), len(diags) == 1,
+			"Banned(%q) must answer for whether Diagnostics reports it", at)
+	}
+}

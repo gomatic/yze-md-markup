@@ -136,6 +136,23 @@ func emptied(diags []goyze.Diagnostic) []goyze.Diagnostic {
 	return diags
 }
 
+// Diagnostics is the findings for one document, and is the entry point the yze
+// suite drives this rule through.
+//
+// It takes no source, and that is the rule's defining property rather than an
+// omission: the decision is the NAME. A README.rst the gate could not open is as
+// certainly a reStructuredText document as one it could, so there is nothing in
+// the bytes for this rule to read. A rule that had to read to decide would have
+// to report an unopenable path as an unknown; this one already knows.
+//
+// Pair it with [Banned] as the claim predicate. Claiming only what can be
+// convicted is what keeps the suite from reading every file in a repository to
+// ask a question about its name — and, because the runner reads a claimed file
+// before analysing it, what keeps one unreadable file from failing a whole run.
+func Diagnostics(at Path) ([]goyze.Diagnostic, error) {
+	return examined(at), nil
+}
+
 // examined is the finding for a path the discovery looked at: the document
 // itself, when its name says it is written in a markup this repository does not
 // write prose in.
